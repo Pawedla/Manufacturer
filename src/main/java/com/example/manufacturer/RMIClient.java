@@ -16,7 +16,7 @@ public class RMIClient {
         server = (Server) registry.lookup("Server");
     }
 
-    //Carries out the whole ordering process
+    //remote function to send order to accounting
     public void bookOrder(int number, String[] order, String[] offer) {
         try {
             server.bookOrder(number, order, offer);

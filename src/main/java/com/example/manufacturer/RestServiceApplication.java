@@ -64,6 +64,7 @@ public class RestServiceApplication implements CommandLineRunner {
         jdbcTemplate.update("INSERT INTO HandleMaterial (handleMaterial) VALUES (?)", "Kunststoffgriff");
     }
 
+    //If some values are not allowed for configuration, all allowed values are stored
     private void addRestrictions() {
         jdbcTemplate.execute("DROP TABLE Restriction IF EXISTS");
         jdbcTemplate.execute("CREATE TABLE Restriction(restrictor VARCHAR(255), restrictedValue VARCHAR(255))");

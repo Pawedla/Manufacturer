@@ -16,6 +16,8 @@ public class SupplierContactUtil {
         String[] supplierUrl = {"http://localhost:8081/", "http://localhost:8082/"};
         ResponseEntity<String[]> responseEntity;
         String[] bestOffer = new String[3];
+
+        //loops through all suppliers, gets best offer (best price)
         for (int i = 0; i < supplierUrl.length; i++) {
             final String uri = MessageFormat
                     .format(supplierUrl[i] + "getOffer/{0}/{1}/{2}/{3}", configuration[0],

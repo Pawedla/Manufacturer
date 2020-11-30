@@ -10,7 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,16 +29,19 @@ public class Controller {
         accounting.startClient();
     }
 
+    //Sends all available HandlebarTypes
     @GetMapping("/getAvailableHandlebarTypes")
     public ResponseEntity getAvailableHandlebarTypes() throws ResponseStatusException {
         return new ResponseEntity(loadAvailableHandlebarTypes(), HttpStatus.ACCEPTED);
     }
 
+    //Checks if given material is stored in database
     public ResponseEntity validateHandleBarTypeInput(String handleBarType) {
         return loadAvailableHandlebarTypes().contains(handleBarType) ?
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNoSuchOption("HandleBarType", handleBarType);
     }
 
+    //Validates input, sends all available materials for given input
     @GetMapping("/getAvailableMaterial")
     public ResponseEntity getAvailableMaterial(@RequestParam final String handleBarType) throws ResponseStatusException {
         ResponseEntity validation = validateHandleBarTypeInput(handleBarType);
@@ -47,6 +49,7 @@ public class Controller {
                 validation : new ResponseEntity(filterAvailableMaterial(handleBarType), HttpStatus.ACCEPTED);
     }
 
+    //Checks if given material is stored in database
     public ResponseEntity validateMaterialInput(String material) {
         return loadAvailableMaterials().contains(material) ?
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNoSuchOption("Material", material);
@@ -57,6 +60,7 @@ public class Controller {
         return handleBarTypeMaterielValidation(handleBarType, material);
     }
 
+    //Checks if inputs are stored in database, checks if inputs are valid for given restriction
     private ResponseEntity handleBarTypeMaterielValidation(String handleBarType, String material) {
         if (validateHandleBarTypeInput(handleBarType).getStatusCode().is4xxClientError())
             return validateHandleBarTypeInput(handleBarType);
@@ -66,6 +70,7 @@ public class Controller {
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNotCompatible(handleBarType, material);
     }
 
+    //Validates input, sends all available GearShifts for given input
     @GetMapping("/getAvailableGearshifts")
     public ResponseEntity getAvailableGearshifts(@RequestParam String material) throws ResponseStatusException {
         ResponseEntity validation = validateMaterialInput(material);
@@ -73,6 +78,7 @@ public class Controller {
                 validation : new ResponseEntity(filterAvailableGearshifts(material), HttpStatus.ACCEPTED);
     }
 
+    //Checks if given gearShift is stored in database
     public ResponseEntity validateGearShiftInput(String gearShift) {
         return loadAvailableGearShifts().contains(gearShift) ?
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNoSuchOption("Gearshift", gearShift);
@@ -83,6 +89,7 @@ public class Controller {
         return materialGearshiftValidation(material, gearShift);
     }
 
+    //Validates input
     private ResponseEntity materialGearshiftValidation(String material, String gearShift) {
         if (validateMaterialInput(material).getStatusCode().is4xxClientError()) return validateMaterialInput(material);
         if (validateGearShiftInput(gearShift).getStatusCode().is4xxClientError())
@@ -92,6 +99,7 @@ public class Controller {
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNotCompatible(material, gearShift);
     }
 
+    //Validates input, sends all available HandleMaterials for given input
     @GetMapping("/getAvailableHandleMaterial")
     public ResponseEntity getAvailableHandleMaterial(@RequestParam String handleBarType, @RequestParam String material) throws ResponseStatusException {
         ResponseEntity validation = validateHandleBarTypeInput(handleBarType);
@@ -101,6 +109,7 @@ public class Controller {
                 validation : new ResponseEntity(filterAvailableHandleMaterial(handleBarType, material), HttpStatus.ACCEPTED);
     }
 
+    //Checks if handleMaterial material is stored in database
     public ResponseEntity validateHandleMaterialInput(String handleMaterial) {
         return loadAvailableHandleMaterial().contains(handleMaterial) ?
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNoSuchOption("HandleMaterial", handleMaterial);
@@ -111,6 +120,7 @@ public class Controller {
         return handleMaterialValidation(handleBarType, material, handleMaterial);
     }
 
+    //Validates input
     private ResponseEntity handleMaterialValidation(String handleBarType, String material, String handleMaterial) {
         if (validateMaterialInput(material).getStatusCode().is4xxClientError()) return validateMaterialInput(material);
         if (validateHandleBarTypeInput(handleBarType).getStatusCode().is4xxClientError())
@@ -125,11 +135,13 @@ public class Controller {
         } else return generateNotCompatible(handleMaterial, handleBarType);
     }
 
+    //Checks for restrictions in database
     private List<String> getRestrictedValues(String restrictor) {
         return jdbcTemplate.query("SELECT restrictedValue FROM Restriction WHERE restrictor = (?)",
                 (rs, rowNum) -> ((rs.getString("restrictedValue"))), restrictor);
     }
 
+    //Checks for restrictions in database for handleMaterial
     private List<String> getRestrictedHandleMaterials(String restrictor1, String restrictor2) {
         List<String> handleMaterials = loadAvailableHandleMaterial();
         Map<String, String> restrictedValues = new HashMap<>();
@@ -147,7 +159,6 @@ public class Controller {
         }
         //adding restricted values if restriction is satisfied
         for (String handleMaterial : handleMaterials) {
-            System.out.println("handlecheck");
             if (restrictedValues.get(handleMaterial) != null && (restrictedValues.get(handleMaterial).equals(restrictor1) || restrictedValues.get(handleMaterial).equals(restrictor2))) {
                 restrictedHandleMaterials.add(handleMaterial);
             }
@@ -155,6 +166,7 @@ public class Controller {
         return restrictedHandleMaterials;
     }
 
+    //Validates all inputs of an order
     private ResponseEntity validateOrder(String[] order) {
         ResponseEntity validation = handleBarTypeMaterielValidation(order[0], order[1]);
         if (validation.getStatusCode().is4xxClientError()) return validation;
@@ -169,10 +181,16 @@ public class Controller {
     public ResponseEntity<OrderReport> register(@RequestBody String[] order) {
         ResponseEntity orderValidation = validateOrder(order);
         if (orderValidation.getStatusCode().is4xxClientError()) return orderValidation;
+
+        //gets best offer from suppliers
         String[] offer = SupplierContactUtil.getBestOffer(order);
+        //gets order number from database
         int number = jdbcTemplate.queryForObject("SELECT max(number) FROM Orders",
                 (rs, rowNum) -> ((rs.getInt(1)))) + 1;
+        System.out.println("Saving order from: " + order[4]);
+        //sends order to accounting
         accounting.bookOrder(number, order, offer);
+        //stores order in database
         saveOrder(number, order, offer);
         OrderReport orderReport = new OrderReport(number, order, Double.valueOf(offer[1]), offer[2]);
         return new ResponseEntity<>(orderReport, HttpStatus.ACCEPTED);
@@ -182,14 +200,18 @@ public class Controller {
         jdbcTemplate.update("INSERT INTO Orders (number, name, handleBarType, material, gearShift, handleMaterial, price, deliveryDate, supplier  ) VALUES (?,?,?,?,?,?,?,?,?)", number, order[4], order[0], order[1], order[2], order[3], offer[1], offer[2], offer[0]);
     }
 
+    //is returned if input is not stored in database
     private ResponseEntity generateNoSuchOption(String option, String selection) {
         return new ResponseEntity(" no such " + option + ": " + selection, HttpStatus.BAD_REQUEST);
     }
 
+    //is returned if input is not compatible with other input
     private ResponseEntity generateNotCompatible(String selection1, String selection2) {
         return new ResponseEntity(HttpStatus.BAD_REQUEST + " :" + selection1 + " is not compatible with " + selection2, HttpStatus.BAD_REQUEST);
     }
 
+    //filter methods return all available materials if no restriction is stored in database
+    //returns all values for given input if restriction is stored
     private List<String> filterAvailableMaterial(String handleBarType) {
         List<String> materials = getRestrictedValues(handleBarType);
         return materials.size() == 0 ? loadAvailableMaterials() : materials;
