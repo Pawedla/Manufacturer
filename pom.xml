@@ -40,7 +40,7 @@
 		<dependency>
 			<groupId>com.github.Pawedla</groupId>
 			<artifactId>Server</artifactId>
-			<version>1.1</version>
+			<version>1.2</version>
 		</dependency>
 
 		<dependency>
@@ -66,16 +66,11 @@
 			</exclusions>
 		</dependency>
 
-		<dependency>
-			<groupId>com.github.jitpack</groupId>
-			<artifactId>maven-simple</artifactId>
-			<version>0.1</version>
-		</dependency>
 
 		<dependency>
 			<groupId>com.github.Pawedla</groupId>
 			<artifactId>Order</artifactId>
-			<version>0.3</version>
+			<version>1.1</version>
 		</dependency>
 
 	</dependencies>
@@ -97,7 +92,7 @@
 					</descriptorRefs>
 					<archive>
 						<manifest>
-							<mainClass>at.jku.App</mainClass>
+							<mainClass>com.example.manufacturer.RestServiceApplication</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
@@ -112,7 +107,7 @@
 				</executions>
 			</plugin>
 
+
 		</plugins>
 	</build>
-
 </project>

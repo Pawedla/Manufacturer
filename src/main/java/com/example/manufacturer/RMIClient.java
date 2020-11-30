@@ -4,7 +4,7 @@ import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import com.github.Pawedla.Order;
+
 import com.github.Pawedla.Server;
 
 public class RMIClient {
@@ -17,9 +17,9 @@ public class RMIClient {
     }
 
     //Carries out the whole ordering process
-    public void postBookOrder(String order) {
+    public void bookOrder(int number, String[] order, String[] offer) {
         try {
-            server.bookOrder(order);
+            server.bookOrder(number, order, offer);
         } catch (RemoteException e) {
             e.printStackTrace();
         }

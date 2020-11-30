@@ -1,5 +1,6 @@
 package com.example.manufacturer;
 
+import com.github.Pawedla.OrderReport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,15 +19,15 @@ import java.util.Map;
 @RestController
 public class Controller {
 
-    public RMIClient client;
+    public RMIClient accounting;
 
     private final JdbcTemplate jdbcTemplate;
 
     @Autowired
     public Controller(final JdbcTemplate jdbcTemplate) throws RemoteException, NotBoundException {
         this.jdbcTemplate = jdbcTemplate;
-        client = new RMIClient();
-        client.startClient();
+        accounting = new RMIClient();
+        accounting.startClient();
     }
 
     @GetMapping("/getAvailableHandlebarTypes")
@@ -52,7 +54,12 @@ public class Controller {
 
     @GetMapping("/getHandleBarTypeMaterialValidation")
     public ResponseEntity getHandleBarTypeMaterialValidation(@RequestParam final String handleBarType, @RequestParam final String material) throws ResponseStatusException {
-        if (validateHandleBarTypeInput(handleBarType).getStatusCode().is4xxClientError()) return validateHandleBarTypeInput(handleBarType);
+        return handleBarTypeMaterielValidation(handleBarType, material);
+    }
+
+    private ResponseEntity handleBarTypeMaterielValidation(String handleBarType, String material) {
+        if (validateHandleBarTypeInput(handleBarType).getStatusCode().is4xxClientError())
+            return validateHandleBarTypeInput(handleBarType);
         if (validateMaterialInput(material).getStatusCode().is4xxClientError()) return validateMaterialInput(material);
         List<String> restrictedMaterials = getRestrictedValues(handleBarType);
         return restrictedMaterials.contains(material) || restrictedMaterials.size() == 0 ?
@@ -73,8 +80,13 @@ public class Controller {
 
     @GetMapping("/getMaterialGearshiftValidation")
     public ResponseEntity getMaterialGearshiftValidation(@RequestParam final String material, @RequestParam final String gearShift) throws ResponseStatusException {
+        return materialGearshiftValidation(material, gearShift);
+    }
+
+    private ResponseEntity materialGearshiftValidation(String material, String gearShift) {
         if (validateMaterialInput(material).getStatusCode().is4xxClientError()) return validateMaterialInput(material);
-        if (validateGearShiftInput(gearShift).getStatusCode().is4xxClientError()) return validateGearShiftInput(gearShift);
+        if (validateGearShiftInput(gearShift).getStatusCode().is4xxClientError())
+            return validateGearShiftInput(gearShift);
         List<String> restrictedGearShifts = getRestrictedValues(material);
         return restrictedGearShifts.contains(gearShift) || restrictedGearShifts.size() == 0 ?
                 new ResponseEntity(HttpStatus.ACCEPTED) : generateNotCompatible(material, gearShift);
@@ -96,6 +108,10 @@ public class Controller {
 
     @GetMapping("/getHandleMaterialValidation")
     public ResponseEntity getHandleMaterialValidation(@RequestParam final String handleBarType, @RequestParam final String material, @RequestParam final String handleMaterial) throws ResponseStatusException {
+        return handleMaterialValidation(handleBarType, material, handleMaterial);
+    }
+
+    private ResponseEntity handleMaterialValidation(String handleBarType, String material, String handleMaterial) {
         if (validateMaterialInput(material).getStatusCode().is4xxClientError()) return validateMaterialInput(material);
         if (validateHandleBarTypeInput(handleBarType).getStatusCode().is4xxClientError())
             return validateHandleBarTypeInput(handleBarType);
@@ -139,15 +155,35 @@ public class Controller {
         return restrictedHandleMaterials;
     }
 
+    private ResponseEntity validateOrder(String[] order) {
+        ResponseEntity validation = handleBarTypeMaterielValidation(order[0], order[1]);
+        if (validation.getStatusCode().is4xxClientError()) return validation;
+        validation = materialGearshiftValidation(order[1], order[2]);
+        if (validation.getStatusCode().is4xxClientError()) return validation;
+        validation = handleMaterialValidation(order[0], order[1], order[3]);
+        if (validation.getStatusCode().is4xxClientError()) return validation;
+        return validation;
+    }
+
     @PostMapping("/order")
-    public ResponseEntity<String> register(@RequestBody String[] order) {
-        String supplier = SupplierContactUtil.getBestOffer(order);
-        client.postBookOrder(supplier);
-        return null;
+    public ResponseEntity<OrderReport> register(@RequestBody String[] order) {
+        ResponseEntity orderValidation = validateOrder(order);
+        if (orderValidation.getStatusCode().is4xxClientError()) return orderValidation;
+        String[] offer = SupplierContactUtil.getBestOffer(order);
+        int number = jdbcTemplate.queryForObject("SELECT max(number) FROM Orders",
+                (rs, rowNum) -> ((rs.getInt(1)))) + 1;
+        accounting.bookOrder(number, order, offer);
+        saveOrder(number, order, offer);
+        OrderReport orderReport = new OrderReport(number, order, Double.valueOf(offer[1]), offer[2]);
+        return new ResponseEntity<>(orderReport, HttpStatus.ACCEPTED);
+    }
+
+    private void saveOrder(int number, String[] order, String[] offer) {
+        jdbcTemplate.update("INSERT INTO Orders (number, name, handleBarType, material, gearShift, handleMaterial, price, deliveryDate, supplier  ) VALUES (?,?,?,?,?,?,?,?,?)", number, order[4], order[0], order[1], order[2], order[3], offer[1], offer[2], offer[0]);
     }
 
     private ResponseEntity generateNoSuchOption(String option, String selection) {
-        return new ResponseEntity(HttpStatus.BAD_REQUEST + " no such " + option + ": " + selection, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity(" no such " + option + ": " + selection, HttpStatus.BAD_REQUEST);
     }
 
     private ResponseEntity generateNotCompatible(String selection1, String selection2) {
